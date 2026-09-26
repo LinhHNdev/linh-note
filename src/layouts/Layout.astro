@@ -1,0 +1,60 @@
+---
+interface Props {
+	title: string;
+	description?: string;
+}
+
+const { title, description } = Astro.props;
+import { ClientRouter } from 'astro:transitions';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		{description && <meta name="description" content={description} />}
+		<meta name="theme-color" content="#10141a" />
+		<ClientRouter />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+		<title>{title}</title>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
+
+<style is:global>
+	:root {
+		font-family: 'Schibsted Grotesk', sans-serif;
+		scroll-behavior: smooth;
+		color: #e3e9f0;
+		background: #10141a;
+		font-synthesis: none;
+		text-rendering: optimizeLegibility;
+		-webkit-font-smoothing: antialiased;
+		color-scheme: dark;
+		--font-sans: 'Schibsted Grotesk', sans-serif;
+		--muted: #8c9bab;
+		--line: #293441;
+		--surface: #151b22;
+		--surface-raised: #1b2530;
+		--text: #e3e9f0;
+		--text-soft: #a3b0c0;
+		--accent: #9fc9ff;
+	}
+
+	* { box-sizing: border-box; }
+	body { margin: 0; min-width: 320px; }
+	a { color: inherit; }
+	::selection { color: #10151d; background: #9fc9ff; }
+	::view-transition-group(root),
+	::view-transition-old(root),
+	::view-transition-new(root) { animation-duration: 120ms; }
+	@media (prefers-reduced-motion: reduce) {
+		:root { scroll-behavior: auto; }
+	}
+</style>

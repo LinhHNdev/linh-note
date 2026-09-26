@@ -1,0 +1,94 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import Sidebar from '../../components/Sidebar.astro';
+
+export async function getStaticPaths() {
+	const notes = await getCollection('notes');
+	return notes.map((note) => ({ params: { slug: note.id.replace(/\.md$/, '') }, props: { note } }));
+}
+
+const { note } = Astro.props;
+const { Content, headings } = await render(note);
+const notes = await getCollection('notes');
+const allTags = [...new Set(notes.flatMap((entry) => entry.data.tags))].sort((a, b) => a.localeCompare(b));
+const tagHref = (tag: string) => `/tags/${tag.split('/').map(encodeURIComponent).join('/')}/`;
+const toc = headings.filter((heading) => heading.depth >= 1 && heading.depth <= 4);
+---
+
+<Layout title={note.data.title}>
+	<div class="reading-page">
+		<Sidebar allTags={allTags} />
+
+		<main class="reader">
+			<article class="prose">
+				<p class="stage">{note.data.stage}</p>
+				<h1 class="note-title">{note.data.title}</h1>
+				<div class="note-tags">
+					{note.data.tags.map((tag) => <a href={tagHref(tag)}>#{tag}</a>)}
+				</div>
+				<Content />
+			</article>
+		</main>
+
+		<aside class="toc-panel">
+			<h2>On this page</h2>
+			<nav aria-label="Table of contents">
+				{toc.map((heading) => <a class:list={[`depth-${heading.depth}`]} href={`#${heading.slug}`}>{heading.text}</a>)}
+			</nav>
+		</aside>
+	</div>
+</Layout>
+
+<style>
+	.reading-page { display: grid; grid-template-columns: 220px minmax(0, 1fr) 220px; min-height: 100vh; }
+	.toc-panel { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 28px 20px; }
+	.toc-panel h2 { margin: 0 0 12px; padding: 0 9px; color: var(--text); font-size: 16px; font-weight: 700; }
+	.toc-panel nav { display: grid; align-content: start; gap: 2px; }
+	.toc-panel a { padding: 5px 9px; border-radius: 4px; color: var(--text-soft); font-size: 14px; line-height: 1.5; text-decoration: none; }
+	.toc-panel a:hover { color: var(--accent); background: var(--surface-raised); }
+	.reader { min-width: 0; }
+	.prose { width: min(100%, 860px); margin: 0 auto; padding: 24px 20px 72px; color: #c2ccda; font-family: var(--font-sans); font-size: 14px; line-height: 1.75; }
+	.prose :global(h1), .prose :global(h2), .prose :global(h3), .prose :global(h4) { color: #dce7f5; font-family: var(--font-sans); font-weight: 600; line-height: 1.3; scroll-margin-top: 24px; }
+	.prose :global(h1.note-title) { margin: 0 0 16px; font-size: clamp(36px, 4.5vw, 44px); letter-spacing: -.8px; }
+	.prose :global(h1:not(.note-title)) { margin: .65em 0 .4em; font-size: 28px; }
+	.stage { margin: 0 0 6px; color: var(--muted); font-family: var(--font-sans); font-size: 16px; font-weight: 700; text-transform: capitalize; }
+	.note-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+	.note-tags a { display: inline-flex; align-items: center; padding: 5px 10px; border: 1px solid var(--line); border-radius: 5px; color: var(--text-soft); background: var(--surface-raised); font-size: 12px; line-height: 1.4; text-decoration: none; }
+	.note-tags a:hover { border-color: var(--accent); color: var(--accent); background: #202e3e; }
+	.prose :global(h2) { margin: 1.2em 0 .4em; font-size: 24px; }
+	.prose :global(h3) { margin: 1em 0 .35em; font-size: 20px; }
+	.prose :global(h4) { margin: .8em 0 .3em; }
+	.prose :global(p) { margin: 0 0 1.25em; }
+	.prose :global(a) { color: #a9d0ff; text-decoration-color: #496785; text-underline-offset: 3px; }
+	.prose :global(a:hover) { color: #d0e5ff; }
+	.prose :global(a.wiki-link) { text-decoration-style: dashed; }
+	.prose :global(blockquote) { margin: 25px 0; padding-left: 20px; border-left: 2px solid #5e83aa; color: #aab8c9; font-style: italic; }
+	.prose :global(ul), .prose :global(ol) { padding-left: 24px; }
+	.prose :global(li) { padding-left: 4px; margin: 5px 0; }
+	.prose :global(code) { padding: 2px 5px; border-radius: 3px; color: #b9d8ff; background: #202a36; font-family: ui-monospace, monospace; font-size: .85em; }
+	.prose :global(pre) { overflow-x: auto; padding: 17px; border: 1px solid var(--line); border-radius: 6px; background: #171e27; }
+	.prose :global(pre code) { padding: 0; background: transparent; }
+	.prose :global(hr) { margin: 30px 0; border: 0; border-top: 1px solid var(--line); }
+	.toc-panel { border-left: 1px solid var(--line); }
+	.toc-panel a.depth-1 { padding-left: 9px; }
+	.toc-panel a.depth-2 { padding-left: 18px; }
+	.toc-panel a.depth-3 { padding-left: 27px; }
+	.toc-panel a.depth-4 { padding-left: 36px; }
+	@media (max-width: 900px) {
+		.reading-page { grid-template-columns: 160px minmax(0, 1fr) 160px; }
+		.toc-panel { padding-right: 12px; padding-left: 12px; }
+		.prose { padding-right: 12px; padding-left: 12px; }
+	}
+	@media (max-width: 600px) {
+		.reading-page { grid-template-columns: 1fr; }
+		.toc-panel { position: static; display: block; height: auto; padding: 12px 16px; border-top: 1px solid var(--line); border-left: 0; }
+		.toc-panel nav { display: flex; flex-wrap: wrap; gap: 2px; }
+		.toc-panel a { padding: 5px 8px; }
+		.toc-panel a.depth-1 { padding-left: 8px; }
+		.toc-panel a.depth-2 { padding-left: 17px; }
+		.toc-panel a.depth-3 { padding-left: 26px; }
+		.toc-panel a.depth-4 { padding-left: 35px; }
+		.prose { padding: 20px 12px 48px; }
+	}
+</style>

@@ -1,0 +1,82 @@
+---
+interface Props {
+	allTags: string[];
+	selectedStage?: string;
+	selectedTag?: string;
+}
+
+const { allTags, selectedStage, selectedTag } = Astro.props;
+const tagHref = (tag: string) => `/tags/${tag.split('/').map(encodeURIComponent).join('/')}/`;
+const stages = [
+	{ label: 'Seedling', slug: 'seedling' },
+	{ label: 'Incubating', slug: 'incubating' },
+	{ label: 'Evergreen', slug: 'evergreen' },
+];
+
+const tagGroups = new Map<string, { label: string; fullTag: string; children: { label: string; fullTag: string }[] }>();
+for (const tag of allTags) {
+	const [parent, ...childParts] = tag.split('/').filter(Boolean);
+	if (!parent) continue;
+	let group = tagGroups.get(parent);
+	if (!group) {
+		group = { label: parent, fullTag: parent, children: [] };
+		tagGroups.set(parent, group);
+	}
+	if (childParts.length > 0) {
+		group.children.push({ label: childParts.join('/'), fullTag: tag });
+	}
+}
+---
+
+<aside class="sidebar">
+	<a class="sidebar-link home-link" href="/">Linh’s Garden</a>
+
+	<nav aria-label="Stages">
+		<h2>Stages</h2>
+		{stages.map((stage) => (
+			<a class:list={['sidebar-link', { active: selectedStage === stage.label }]} href={`/stages/${stage.slug}/`}>
+				{stage.label}
+			</a>
+		))}
+	</nav>
+
+	<nav class="tag-navigation" aria-label="Tags">
+		<h2>Tags</h2>
+		<div class="tag-tree">
+			{[...tagGroups.values()].map((group) => (
+				<div class="tag-group">
+					{allTags.includes(group.fullTag) ? (
+						<a class:list={['sidebar-link', { active: selectedTag === group.fullTag }]} href={tagHref(group.fullTag)}>#{group.label}</a>
+					) : (
+						<span class="tag-parent">#{group.label}</span>
+					)}
+					{group.children.map((child) => (
+						<a class:list={['sidebar-link', 'child-tag', { active: selectedTag === child.fullTag }]} href={tagHref(child.fullTag)}>#{child.label}</a>
+					))}
+				</div>
+			))}
+		</div>
+	</nav>
+</aside>
+
+<style>
+	.sidebar { position: sticky; top: 0; display: grid; align-content: start; gap: 28px; height: 100vh; overflow-y: auto; padding: 28px 20px; border-right: 1px solid var(--line); }
+	.sidebar nav { display: grid; align-content: start; gap: 2px; }
+	.sidebar h2 { margin: 0 0 5px; padding: 0 9px; color: var(--text); font-size: 16px; font-weight: 700; }
+	.sidebar-link { padding: 5px 9px; border-radius: 4px; color: var(--text-soft); font-size: 14px; text-decoration: none; }
+	.sidebar-link:hover, .sidebar-link.active { color: var(--accent); background: var(--surface-raised); }
+	.home-link { width: fit-content; padding: 7px 9px; color: var(--text); font-size: 24px; font-weight: 700; }
+	.home-link:hover { color: var(--text); background: transparent; }
+	.tag-tree { display: grid; gap: 5px; }
+	.tag-group { display: grid; gap: 0; }
+	.tag-parent { padding: 5px 9px; color: var(--text-soft); font-size: 14px; }
+	.child-tag { margin-left: 12px; }
+	@media (max-width: 600px) {
+		.sidebar { position: static; display: flex; height: auto; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+		.sidebar nav { display: flex; flex-wrap: wrap; align-content: start; gap: 2px; }
+		.sidebar h2 { flex-basis: 100%; padding: 4px 8px; }
+		.tag-tree { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+		.tag-group { display: grid; align-content: start; }
+		.child-tag { margin-left: 12px; }
+	}
+</style>

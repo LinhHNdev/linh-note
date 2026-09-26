@@ -1,0 +1,53 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import Sidebar from '../../components/Sidebar.astro';
+
+export async function getStaticPaths() {
+	const notes = await getCollection('notes');
+	const tags = [...new Set(notes.flatMap((note) => note.data.tags))];
+	return tags.map((tag) => ({
+		params: { tag },
+		props: {
+			tag,
+			notes: notes
+				.filter((note) => note.data.tags.includes(tag))
+				.sort((a, b) => a.data.title.localeCompare(b.data.title)),
+		},
+	}));
+}
+
+const { tag, notes } = Astro.props;
+const allNotes = await getCollection('notes');
+const allTags = [...new Set(allNotes.flatMap((note) => note.data.tags))].sort((a, b) => a.localeCompare(b));
+---
+
+<Layout title={`#${tag}`}>
+	<div class="tag-page">
+		<Sidebar allTags={allTags} selectedTag={tag} />
+
+		<main class="note-list">
+			<h1>#{tag}</h1>
+			{notes.map((note) => (
+				<a class="note-link" href={`/notes/${note.id.replace(/\.md$/, '')}/`}>
+					<span>{note.data.title}</span>
+					<span class="note-tags">{note.data.tags.map((noteTag) => `#${noteTag}`).join(', ')}</span>
+				</a>
+			))}
+		</main>
+	</div>
+</Layout>
+
+<style>
+	.tag-page { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+	.note-list { width: min(100%, 820px); margin: 0 auto; padding: 24px 32px; }
+	.note-list h1 { margin: 0 0 20px; color: var(--text); font-size: 28px; font-weight: 600; }
+	.note-link { display: flex; justify-content: space-between; gap: 24px; padding: 14px 0; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+	.note-link:hover { color: var(--accent); }
+	.note-tags { color: var(--muted); font-size: 12px; }
+	@media (max-width: 600px) {
+		.tag-page { grid-template-columns: 1fr; align-content: start; }
+		.note-list { padding: 16px 12px; }
+		.note-link { flex-wrap: wrap; gap: 6px 16px; }
+	}
+</style>
