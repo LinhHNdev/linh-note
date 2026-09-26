@@ -1,7 +1,16 @@
 ---
 import { getCollection, render } from 'astro:content';
+import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import Layout from '../../layouts/Layout.astro';
 import Sidebar from '../../components/Sidebar.astro';
+import { slugify } from '../../plugins/remark-wikilinks.mjs';
+import remarkWikilinks from '../../plugins/remark-wikilinks.mjs';
+
+const previewMarkdown = await createMarkdownProcessor({
+	remarkPlugins: [remarkWikilinks],
+	syntaxHighlight: false,
+	remarkRehype: { allowDangerousHtml: false },
+});
 
 export async function getStaticPaths() {
 	const notes = await getCollection('notes');
@@ -14,13 +23,35 @@ const notes = await getCollection('notes');
 const allTags = [...new Set(notes.flatMap((entry) => entry.data.tags))].sort((a, b) => a.localeCompare(b));
 const tagHref = (tag: string) => `/tags/${tag.split('/').map(encodeURIComponent).join('/')}/`;
 const toc = headings.filter((heading) => heading.depth >= 1 && heading.depth <= 4);
+const notePreviews = Object.fromEntries(
+	await Promise.all(notes.map(async (entry) => {
+		const markdown = (entry.body ?? '').replace(/^---[\s\S]*?---\s*/m, '').slice(0, 4000);
+		const { code } = await previewMarkdown.render(markdown);
+		return [slugify(entry.id.replace(/\.md$/, '')), { title: entry.data.title, excerpt: code }];
+	})),
+);
+const currentSlug = slugify(note.id.replace(/\.md$/, ''));
+const backlinks = notes
+	.filter((source): source is (typeof source & { body: string }) =>
+		source.id !== note.id && typeof source.body === 'string',
+	)
+	.filter((source) => {
+		const linkPattern = /\[\[([^\]]+)\]\]/g;
+		let match;
+		while ((match = linkPattern.exec(source.body)) !== null) {
+			const target = match[1].split('|', 1)[0].trim().split('#', 1)[0].trim();
+			if (target && slugify(target) === currentSlug) return true;
+		}
+		return false;
+	})
+	.sort((a, b) => a.data.title.localeCompare(b.data.title));
 ---
 
 <Layout title={note.data.title}>
 	<div class="reading-page">
 		<Sidebar allTags={allTags} />
 
-		<main class="reader">
+		<main class="reader" data-note-previews={JSON.stringify(notePreviews)}>
 			<article class="prose">
 				<p class="stage">{note.data.stage}</p>
 				<h1 class="note-title">{note.data.title}</h1>
@@ -36,6 +67,14 @@ const toc = headings.filter((heading) => heading.depth >= 1 && heading.depth <= 
 			<nav aria-label="Table of contents">
 				{toc.map((heading) => <a class:list={[`depth-${heading.depth}`]} href={`#${heading.slug}`}>{heading.text}</a>)}
 			</nav>
+			{backlinks.length > 0 && (
+				<section class="backlinks" aria-labelledby="backlinks-title">
+					<h2 id="backlinks-title">Backlinks</h2>
+					<nav aria-label="Backlinks">
+						{backlinks.map((source) => <a href={`/notes/${source.id.replace(/\.md$/, '')}/`}>{source.data.title}</a>)}
+					</nav>
+				</section>
+			)}
 		</aside>
 	</div>
 </Layout>
@@ -47,6 +86,9 @@ const toc = headings.filter((heading) => heading.depth >= 1 && heading.depth <= 
 	.toc-panel nav { display: grid; align-content: start; gap: 2px; }
 	.toc-panel a { padding: 5px 9px; border-radius: 4px; color: var(--text-soft); font-size: 14px; line-height: 1.5; text-decoration: none; }
 	.toc-panel a:hover { color: var(--accent); background: var(--surface-raised); }
+	.backlinks { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+	.backlinks h2 { margin-bottom: 10px; }
+	.backlinks nav { display: grid; align-content: start; gap: 2px; }
 	.reader { min-width: 0; }
 	.prose { width: min(100%, 860px); margin: 0 auto; padding: 24px 20px 72px; color: #c2ccda; font-family: var(--font-sans); font-size: 14px; line-height: 1.75; }
 	.prose :global(h1), .prose :global(h2), .prose :global(h3), .prose :global(h4) { color: #dce7f5; font-family: var(--font-sans); font-weight: 600; line-height: 1.3; scroll-margin-top: 24px; }
@@ -92,3 +134,113 @@ const toc = headings.filter((heading) => heading.depth >= 1 && heading.depth <= 
 		.prose { padding: 20px 12px 48px; }
 	}
 </style>
+
+<script>
+	const preview = document.createElement('aside');
+	preview.className = 'link-preview';
+	preview.setAttribute('role', 'tooltip');
+	preview.hidden = true;
+	preview.innerHTML = '<strong></strong><p></p>';
+	document.body.append(preview);
+
+	const previewTitle = preview.querySelector('strong');
+	const previewExcerpt = preview.querySelector('p');
+	let activeLink: HTMLAnchorElement | null = null;
+	let pendingLink: HTMLAnchorElement | null = null;
+	let showTimer: number | undefined;
+	let hideTimer: number | undefined;
+
+	function hidePreview() {
+		window.clearTimeout(showTimer);
+		window.clearTimeout(hideTimer);
+		preview.hidden = true;
+		activeLink = null;
+		pendingLink = null;
+	}
+
+	function ensurePreviewMounted() {
+		if (!preview.isConnected) document.body.append(preview);
+	}
+
+	function showPreview(link: HTMLAnchorElement) {
+		const reader = link.closest<HTMLElement>('.reader[data-note-previews]');
+		if (!reader) return;
+
+		let previews: Record<string, { title: string; excerpt: string }>;
+		try {
+			previews = JSON.parse(reader.dataset.notePreviews ?? '{}');
+		} catch {
+			return;
+		}
+
+		const targetUrl = new URL(link.href, window.location.href);
+		const match = targetUrl.pathname.match(/^\/notes\/(.+?)\/?$/);
+		if (!match) return;
+
+		const note = previews[decodeURIComponent(match[1])];
+		if (!note) return;
+
+		activeLink = link;
+		pendingLink = null;
+		previewTitle!.textContent = note.title;
+		previewExcerpt!.innerHTML = note.excerpt;
+		preview.hidden = false;
+
+		const anchorRect = link.getBoundingClientRect();
+		preview.style.maxHeight = 'none';
+		const spaceAbove = Math.max(0, anchorRect.top - 20);
+		const spaceBelow = Math.max(0, window.innerHeight - anchorRect.bottom - 20);
+		const placeBelow = spaceBelow >= spaceAbove;
+		const availableSpace = placeBelow ? spaceBelow : spaceAbove;
+		preview.style.maxHeight = `${Math.min(360, availableSpace)}px`;
+		const previewRect = preview.getBoundingClientRect();
+		const left = Math.min(Math.max(12, anchorRect.left), window.innerWidth - previewRect.width - 12);
+		const top = placeBelow
+			? anchorRect.bottom + 8
+			: anchorRect.top - previewRect.height - 8;
+		preview.style.left = `${left}px`;
+		preview.style.top = `${top}px`;
+	}
+
+	document.addEventListener('pointerover', (event) => {
+		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('.prose a[href]');
+		if (!link || link === activeLink) return;
+		window.clearTimeout(hideTimer);
+		window.clearTimeout(showTimer);
+		pendingLink = link;
+		showTimer = window.setTimeout(() => showPreview(link), 180);
+	});
+
+	document.addEventListener('pointerout', (event) => {
+		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('.prose a[href]');
+		if (!link) return;
+		if (link === pendingLink) {
+			window.clearTimeout(showTimer);
+			pendingLink = null;
+		}
+		if (link !== activeLink) return;
+		if (preview.contains(event.relatedTarget as Node | null)) return;
+		if ((event.relatedTarget as Node | null)?.nodeType && link.contains(event.relatedTarget as Node)) return;
+		hideTimer = window.setTimeout(hidePreview, 100);
+	});
+
+	preview.addEventListener('pointerenter', () => window.clearTimeout(hideTimer));
+	preview.addEventListener('pointerleave', () => {
+		hideTimer = window.setTimeout(hidePreview, 100);
+	});
+	preview.addEventListener('wheel', (event) => event.stopPropagation(), { passive: true });
+	preview.addEventListener('touchmove', (event) => event.stopPropagation(), { passive: true });
+
+	document.addEventListener('focusin', (event) => {
+		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('.prose a[href]');
+		if (link) showPreview(link);
+	});
+
+	document.addEventListener('focusout', (event) => {
+		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('.prose a[href]');
+		if (link) hidePreview();
+	});
+
+	document.addEventListener('astro:before-swap', hidePreview);
+	document.addEventListener('astro:page-load', ensurePreviewMounted);
+</script>

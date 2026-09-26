@@ -28,7 +28,7 @@ for (const tag of allTags) {
 }
 ---
 
-<aside class="sidebar">
+<aside class="sidebar" transition:persist="garden-sidebar">
 	<a class="sidebar-link home-link" href="/">Linh’s Garden</a>
 
 	<nav aria-label="Stages">
@@ -80,3 +80,16 @@ for (const tag of allTags) {
 		.child-tag { margin-left: 12px; }
 	}
 </style>
+
+<script>
+	function updateCurrentSidebarLink() {
+		const currentPath = window.location.pathname;
+		document.querySelectorAll<HTMLAnchorElement>('.sidebar .sidebar-link[href]').forEach((link) => {
+			const linkPath = new URL(link.href, window.location.href).pathname;
+			link.classList.toggle('active', linkPath === currentPath && linkPath !== '/');
+		});
+	}
+
+	updateCurrentSidebarLink();
+	document.addEventListener('astro:page-load', updateCurrentSidebarLink);
+</script>

@@ -57,4 +57,35 @@ import { ClientRouter } from 'astro:transitions';
 	@media (prefers-reduced-motion: reduce) {
 		:root { scroll-behavior: auto; }
 	}
+	.link-preview {
+		position: fixed;
+		z-index: 1000;
+		width: min(380px, calc(100vw - 24px));
+		max-height: min(360px, calc(100vh - 24px));
+		overflow-y: auto;
+		overflow-x: hidden;
+		overscroll-behavior: contain;
+		touch-action: pan-y;
+		scrollbar-gutter: stable;
+		padding: 18px 20px;
+		border: 1px solid var(--line);
+		border-radius: 7px;
+		color: var(--text-soft);
+		background: #151b22;
+		box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+		font-size: 14px;
+		line-height: 1.6;
+		pointer-events: auto;
+	}
+	.link-preview[hidden] { display: none; }
+	.link-preview strong { display: block; margin-bottom: 8px; color: var(--text); font-size: 17px; }
+	.link-preview :is(h1, h2, h3, h4, h5, h6) { margin: 0 0 8px; color: var(--text); font-size: 16px; line-height: 1.35; }
+	.link-preview p { margin: 0 0 10px; }
+	.link-preview p:last-child { margin-bottom: 0; }
+	.link-preview a { color: var(--accent); text-decoration-color: #496785; text-underline-offset: 2px; }
+	.link-preview ul, .link-preview ol { margin: 0 0 10px; padding-left: 20px; }
+	.link-preview blockquote { margin: 8px 0; padding-left: 10px; border-left: 2px solid #5e83aa; color: var(--muted); }
+	.link-preview code { padding: 1px 4px; border-radius: 3px; background: #202a36; font-family: ui-monospace, monospace; font-size: .9em; }
+	.link-preview pre { overflow-x: auto; padding: 9px; border-radius: 4px; background: #202a36; }
+	.link-preview pre code { padding: 0; }
 </style>

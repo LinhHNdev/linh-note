@@ -1,4 +1,4 @@
-function slugify(value) {
+export function slugify(value) {
 	return value
 		.normalize('NFKD')
 		.toLowerCase()
